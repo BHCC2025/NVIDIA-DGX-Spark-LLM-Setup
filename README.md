@@ -28,12 +28,12 @@ models below.
 | Model | Sparks | Engine | Recipe | 1 user (code / chat) | 8 users (code / chat) |
 |---|---|---|---|---|---|
 | Qwen3.8-27B (MLX 4-bit) | 1 | TensorFold | [TensorFold docs](https://github.com/ashhart/TensorFold/blob/main/docs/recipes/qwen3.8-27b.md) · [MiaAI-Lab recipe](https://github.com/MiaAI-Lab/Qwen3.8-27B-DGX-Spark-TensorFold) | 69.1 / 51.3 tok/s | 319 / 230 tok/s |
-| Qwen3.8-27B (MLX 4-bit) | 2 | TensorFold | _ours, coming_ | 97.2 / 70.4 tok/s | 365 / 262 tok/s |
+| Qwen3.8-27B (MLX 4-bit) | 2 | TensorFold | [ours](https://github.com/BHCC2025/Qwen3.8-27B-DGX-Spark-TP2-TensorFold) | 100.1 / 73.3 tok/s | 387 / 279 tok/s |
 | Qwen3.8 Flash Next | 1 | TensorFold | [TensorFold docs](https://github.com/ashhart/TensorFold/blob/main/docs/recipes/qwen3.8-flash-next.md) · [MiaAI-Lab recipe](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold) | 85.8 / 72.0 tok/s | 425 / 388 tok/s |
 | Gemma-4-31B-IT | 1–2 | vLLM | [ours](https://github.com/BHCC2025/Gemma-4-31B-IT-DGX-Spark-TP1-TP2) | 24.2 / 16.6 tok/s (1 Spark) | — |
 
-How we measured: the TensorFold rows use TensorFold 0.6.2 and its own `tools/bench_concurrent.py` (greedy, 32K
-context, drafts on as shipped). The Gemma row uses that recipe's `bench/bench.sh`, whose `bench/results/` has the raw logs. All measured on our
+How we measured: the TensorFold rows use TensorFold 0.6.2 and its own `tools/bench_concurrent.py` (greedy, drafts on
+as shipped). The Gemma row uses that recipe's `bench/bench.sh`, whose `bench/results/` has the raw logs. All measured on our
 Sparks, 2026-09-24 to 2026-10-02.
 
 **Both engines, same benchmark** (one Spark, Qwen3.8 Flash Next, our recipe kit's `bench/bench.sh`, thinking off):
