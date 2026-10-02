@@ -1,65 +1,74 @@
 # NVIDIA DGX Spark LLM Setup — Start Here
 
-Run open LLMs such as Qwen and Gemma locally on 1, 2 or 3 NVIDIA DGX Sparks (GB10) with vLLM: tested recipes, one
-setup script, and multi-Spark tensor parallelism over direct QSFP cables (one box, two joined by a cable, or three in
-a triangle).
+Run open LLMs such as Qwen locally on one or two NVIDIA DGX Sparks (GB10). We now serve with
+[TensorFold](https://github.com/ashhart/TensorFold) by @ashhart. On one Spark, with its recommended checkpoint, it decodes
+Qwen3.8 Flash Next about twice as fast as our vLLM recipe did, serves several users at once, and installs with one
+`pip` command inside NVIDIA's PyTorch container.
 
-Every speed below was measured on our own Sparks with the recipe's own benchmark, and every setup passed its smoke
-test.
+This page tells you what to run and where the recipe lives. Some recipes are ours; for others we point to the people
+who already publish them. Every speed below was measured on our own Sparks.
 
 ## Start here
 
-1. Pick a recipe below: the model you want, on as many Sparks as you have.
-2. On the Spark you'll serve from:
+1. **Pick a model and the number of Sparks** from the table below.
+2. **Follow that recipe's README.** For TensorFold on one Spark it comes down to three commands:
    ```bash
-   git clone https://github.com/BHCC2025/<recipe>.git
-   cd <recipe>
-   ./setup.sh
+   docker run -it --gpus all --ipc=host --network host nvcr.io/nvidia/pytorch:26.07-py3
+   python -m pip install git+https://github.com/ashhart/TensorFold.git
+   tensorfold serve <checkpoint> --host 0.0.0.0
    ```
-   `./setup.sh` checks and installs what's missing, finds how your Sparks are cabled and gives the ports IP addresses,
-   tests the network with a real NCCL all-reduce, and downloads the model. It asks before every change.
-3. `./run.sh tp1` on one Spark (`tp2` on two, `tp3` on three), then `scripts/smoke-test.sh`. The API is
-   OpenAI-compatible, on port 8000 of that Spark.
+   The API is OpenAI-compatible.
+3. **Two Sparks** need one cable and a working network between them first; see [Cabling](#cabling).
 
-You don't need to download anything else: each recipe includes the setup kit.
-
-**Before you start:** DGX OS 7 with its current updates on every Spark, and no Hugging Face login needed for the
-recipes below. For more than one Spark, connect the cables first (see below). No IP addresses to configure:
-`./setup.sh` finds which port goes where and assigns them.
-
-### Cabling
-
-Each DGX Spark has two high-speed QSFP network ports. No switch is needed: the Sparks are cabled to each other
-directly with 200GbE QSFP cables.
-
-**Two Sparks, for TP2:** one cable, from either port on one Spark to either port on the other.
-
-**Three Sparks, for TP3 (triangle):** three cables, so that each Spark's two ports go to its two different neighbours:
-
-| Cable | From | To |
-|---|---|---|
-| 1 | Spark A, port 1 | Spark B, port 1 |
-| 2 | Spark B, port 2 | Spark C, port 1 |
-| 3 | Spark C, port 2 | Spark A, port 2 |
-
-Any other arrangement works too, as long as no Spark has both cables going to the same neighbour; `./setup.sh`
-detects the layout and tells you if it is wrong. Run `./setup.sh` on Spark A, which becomes the head node.
+**Before you start:** DGX OS 7 with its current updates on every Spark. No Hugging Face login is needed for the
+models below.
 
 ## Recipes
 
-| Recipe | Sparks | 1 Spark (code / prose) | Fastest (code / prose) |
-|---|---|---|---|
-| [Qwen3.8-Flash-Next](https://github.com/BHCC2025/Qwen3.8-Flash-Next-DGX-Spark-TP1-TP3) | 1–3 | 40.1 / 26.4 tok/s | 62.8 / 40.7 tok/s on 3; up to 1M context |
-| [Gemma-4-31B-IT](https://github.com/BHCC2025/Gemma-4-31B-IT-DGX-Spark-TP1-TP2) | 1–2 | 24.2 / 16.6 tok/s | 40.6 / 28.0 tok/s on 2 |
+| Model | Sparks | Engine | Recipe | 1 user (code / chat) | 8 users (code / chat) |
+|---|---|---|---|---|---|
+| Qwen3.8-27B (MLX 4-bit) | 1 | TensorFold | [TensorFold docs](https://github.com/ashhart/TensorFold/blob/main/docs/recipes/qwen3.8-27b.md) · [MiaAI-Lab recipe](https://github.com/MiaAI-Lab/Qwen3.8-27B-DGX-Spark-TensorFold) | 69.1 / 51.3 tok/s | 319 / 230 tok/s |
+| Qwen3.8-27B (MLX 4-bit) | 2 | TensorFold | _ours, coming_ | 97.2 / 70.4 tok/s | 365 / 262 tok/s |
+| Qwen3.8 Flash Next | 1 | TensorFold | [TensorFold docs](https://github.com/ashhart/TensorFold/blob/main/docs/recipes/qwen3.8-flash-next.md) · [MiaAI-Lab recipe](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark-TensorFold) | 85.8 / 72.0 tok/s | 425 / 388 tok/s |
+| Gemma-4-31B-IT | 1–2 | vLLM | [ours](https://github.com/BHCC2025/Gemma-4-31B-IT-DGX-Spark-TP1-TP2) | 24.2 / 16.6 tok/s (1 Spark) | — |
 
-Single-stream decode. Each recipe's `bench/results/` has the raw logs.
+How we measured: the TensorFold rows use TensorFold 0.6.2 and its own `tools/bench_concurrent.py` (greedy, 32K
+context, drafts on as shipped). The Gemma row uses that recipe's `bench/bench.sh`, whose `bench/results/` has the raw logs. All measured on our
+Sparks, 2026-09-24 to 2026-10-02.
+
+**Both engines, same benchmark** (one Spark, Qwen3.8 Flash Next, our recipe kit's `bench/bench.sh`, thinking off):
+
+| Engine and checkpoint | Decode, code / prose | Cold prompt, 8K tokens |
+|---|---|---|
+| vLLM, `nvidia/Qwen3.8-Flash-Next-NVFP4` | 40.1 / 26.4 tok/s | 1,779 tok/s |
+| TensorFold 0.6.2, the same NVFP4 checkpoint | 44.7 / 33.8 tok/s | 1,621 tok/s |
+| TensorFold 0.6.2, `Vontra/Qwen3.8-Flash-Next-MLX-4bit-MTP` (recommended) | 79.8 / 60.7 tok/s | 2,261 tok/s |
+
+On NVIDIA's NVFP4 checkpoint TensorFold decodes faster but reads prompts a little slower (it reports that checkpoint
+as untested); on its recommended MLX 4-bit checkpoint it is faster at both. Each engine sampled with its own default
+temperature.
+
+TensorFold also runs Nemotron 3.5 Lightning, and GLM-5.3-Flash on two Sparks; see its
+[model list](https://github.com/ashhart/TensorFold#models).
+
+## Cabling
+
+Each DGX Spark has two 200GbE QSFP ports. No switch is needed.
+
+**Two Sparks:** one QSFP cable, from either port on one Spark to either port on the other.
+
+**Four Sparks:** we have not benched a four-Spark ring ourselves yet.
+[MiaAI-Lab's switchless ring recipe](https://github.com/MiaAI-Lab/glm-5.3-flash-4x-dgx-spark-switchless) shows one.
+
+Our [setup kit](https://github.com/BHCC2025/dgx-spark-recipe-kit) finds which port goes where, gives the ports
+addresses and tests the link with a real NCCL all-reduce (`./setup.sh`; it asks before every change).
+
+## Older vLLM recipes
+
+[Qwen3.8-Flash-Next-DGX-Spark-TP1-TP3](https://github.com/BHCC2025/Qwen3.8-Flash-Next-DGX-Spark-TP1-TP3) (vLLM,
+1–3 Sparks) is archived. It still works as published, but we no longer maintain it.
 
 ## Something not working?
 
-Run `./setup.sh --check` in the recipe (it changes nothing) and open an issue on that recipe with the
-`.setup/report.txt` it writes.
-
-## Writing a recipe
-
-[dgx-spark-recipe-kit](https://github.com/BHCC2025/dgx-spark-recipe-kit) has the shared setup, the benchmark and
-`new-recipe.sh`, which starts a new recipe in the same layout.
+Open an issue on the recipe you followed. For TensorFold itself, use
+[TensorFold's issues](https://github.com/ashhart/TensorFold/issues).
